@@ -42,6 +42,7 @@ import (
 	iamcredentials "google.golang.org/api/iamcredentials/v1"
 	cloudlogging "google.golang.org/api/logging/v2"
 	"google.golang.org/api/pubsub/v1"
+	"google.golang.org/api/resourcesettings/v1"
 	"google.golang.org/api/servicemanagement/v1"
 	"google.golang.org/api/servicenetworking/v1"
 	"google.golang.org/api/serviceusage/v1"
@@ -213,6 +214,7 @@ type Config struct {
 	PubsubLiteBasePath           string
 	RedisBasePath                string
 	ResourceManagerBasePath      string
+	ResourceSettingsBasePath     string
 	SecretManagerBasePath        string
 	SecurityCenterBasePath       string
 	ServiceManagementBasePath    string
@@ -336,6 +338,7 @@ const BigtableAdminBasePathKey = "BigtableAdmin"
 const GkeHubFeatureBasePathKey = "GkeHubFeature"
 const ContainerAwsBasePathKey = "ContainerAws"
 const ContainerAzureBasePathKey = "ContainerAzure"
+const ResourceSettingsBasePathKey = "ResourceSettings"
 
 // Generated product base paths
 var DefaultBasePaths = map[string]string{
@@ -418,6 +421,7 @@ var DefaultBasePaths = map[string]string{
 	GkeHubFeatureBasePathKey:        "https://gkehub.googleapis.com/v1beta/",
 	ContainerAwsBasePathKey:         "https://{{location}}-gkemulticloud.googleapis.com/v1/",
 	ContainerAzureBasePathKey:       "https://{{location}}-gkemulticloud.googleapis.com/v1/",
+	ResourceSettingsBasePathKey:     "https://resourcesettings.googleapis.com/v1/",
 }
 
 var DefaultClientScopes = []string{
@@ -763,6 +767,20 @@ func (c *Config) NewDataflowClient(userAgent string) *dataflow.Service {
 	clientDataflow.BasePath = dataflowClientBasePath
 
 	return clientDataflow
+}
+
+func (c *Config) NewResourceSettingsClient(userAgent string) *resourcesettings.Service {
+	resourceSettingsBasePath := removeBasePathVersion(c.ResourceSettingsBasePath)
+	log.Printf("[INFO] Instantiating Google Cloud ResourceSettings client for path %s", resourceSettingsBasePath)
+	svc, err := resourcesettings.NewService(c.context, option.WithHTTPClient(c.client))
+	if err != nil {
+		log.Printf("[WARN] Error creating client resource settings: %s", err)
+		return nil
+	}
+	svc.UserAgent = userAgent
+	svc.BasePath = resourceSettingsBasePath
+
+	return svc
 }
 
 func (c *Config) NewResourceManagerClient(userAgent string) *cloudresourcemanager.Service {
@@ -1263,4 +1281,5 @@ func ConfigureBasePaths(c *Config) {
 	c.BigQueryBasePath = DefaultBasePaths[BigQueryBasePathKey]
 	c.StorageTransferBasePath = DefaultBasePaths[StorageTransferBasePathKey]
 	c.BigtableAdminBasePath = DefaultBasePaths[BigtableAdminBasePathKey]
+	c.ResourceSettingsBasePath = DefaultBasePaths[ResourceSettingsBasePathKey]
 }
