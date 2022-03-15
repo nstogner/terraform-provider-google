@@ -1217,7 +1217,7 @@ func ResourceMapWithErrors() (map[string]*schema.Resource, error) {
 			"google_storage_default_object_acl":            resourceStorageDefaultObjectAcl(),
 			"google_storage_notification":                  resourceStorageNotification(),
 			"google_storage_transfer_job":                  resourceStorageTransferJob(),
-			"google_organization_resource_setting":         resourceGoogleResourceSettings("organization"),
+			"google_organization_resource_setting":         resourceGoogleOrganizationResourceSetting(),
 		},
 		// resources implemented within tpgtools
 		map[string]*schema.Resource{

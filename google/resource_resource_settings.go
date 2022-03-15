@@ -9,23 +9,36 @@ import (
 	resourceSettingsV1 "google.golang.org/api/resourcesettings/v1"
 )
 
-func resourceGoogleResourceSettings(parentType string) *schema.Resource {
+func resourceGoogleOrganizationResourceSetting() *schema.Resource {
+	return resourceGoogleXResourceSetting("organization")
+}
+func resourceGoogleFolderResourceSetting() *schema.Resource {
+	return resourceGoogleXResourceSetting("folder")
+}
+func resourceGoogleProjectResourceSetting() *schema.Resource {
+	return resourceGoogleXResourceSetting("project")
+}
+
+const (
+	resourceSettingKeyBooleanValue  = "local_value.0.boolean_value"
+	resourceSettingKeyStringValue   = "local_value.0.string_value"
+	resourceSettingKeyEnumValue     = "local_value.0.enum_value"
+	resourceSettingKeyDurationValue = "local_value.0.duration_value"
+)
+
+func resourceGoogleXResourceSetting(parentType string) *schema.Resource {
 	localValueKeys := []string{
-		"local_value.0.boolean_value",
-		"local_value.0.string_value",
-		"local_value.0.enum_value",
-		"local_value.0.duration_value",
+		resourceSettingKeyBooleanValue,
+		resourceSettingKeyStringValue,
+		resourceSettingKeyEnumValue,
+		resourceSettingKeyDurationValue,
 	}
 
 	return &schema.Resource{
-		Create: resourceGoogleResourceSettingsCreate(parentType),
-		Read:   resourceGoogleResourceSettingsRead(parentType),
-		Update: resourceGoogleResourceSettingsUpdate(parentType),
-		Delete: resourceGoogleResourceSettingsDelete(parentType),
-
-		Importer: &schema.ResourceImporter{
-			State: resourceGoogleResourceSettingsImportState,
-		},
+		Create: resourceGoogleResourceSettingCreate(parentType),
+		Read:   resourceGoogleResourceSettingRead(parentType),
+		Update: resourceGoogleResourceSettingUpdate(parentType),
+		Delete: resourceGoogleResourceSettingDelete(parentType),
 
 		Timeouts: &schema.ResourceTimeout{
 			Create: schema.DefaultTimeout(4 * time.Minute),
@@ -35,7 +48,8 @@ func resourceGoogleResourceSettings(parentType string) *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			resourceSettingsParentKey(parentType): {
+			// Example: "folder_id".
+			resourceSettingParentKey(parentType): {
 				Type:        schema.TypeString,
 				Description: fmt.Sprintf(`The %s id the resource setting with be applied to.`, parentType),
 				Required:    true,
@@ -45,7 +59,6 @@ func resourceGoogleResourceSettings(parentType string) *schema.Resource {
 				Description: `The resource settings name. For example, "gcp-enableMyFeature".`,
 				Required:    true,
 			},
-
 			"local_value": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -65,7 +78,6 @@ func resourceGoogleResourceSettings(parentType string) *schema.Resource {
 							Description:  `Holds the value for a tag field with string type.`,
 							AtLeastOneOf: localValueKeys,
 						},
-						// TODO: String set.
 						"enum_value": {
 							Type:         schema.TypeString,
 							Optional:     true,
@@ -73,11 +85,14 @@ func resourceGoogleResourceSettings(parentType string) *schema.Resource {
 							AtLeastOneOf: localValueKeys,
 						},
 						"duration_value": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Description:  `TODO`,
+							Type:     schema.TypeString,
+							Optional: true,
+							Description: `Defines this value as being a Duration.
+
+A duration in seconds with up to nine fractional digits, terminated by 's'. Example: "3.5s".`,
 							AtLeastOneOf: localValueKeys,
 						},
+						// TODO: String set.
 						// TODO: String map
 					},
 				},
@@ -87,24 +102,24 @@ func resourceGoogleResourceSettings(parentType string) *schema.Resource {
 	}
 }
 
-func resourceSettingsFullName(parentType, parentIdentifier, settingName string) string {
+func resourceSettingFullName(parentType, parentIdentifier, settingName string) string {
 	return fmt.Sprintf("%ss/%s/settings/%s", parentType, parentIdentifier, settingName)
 }
 
-func resourceSettingsShortName(fullName string) string {
+func resourceSettingShortName(fullName string) string {
 	split := strings.Split(fullName, "/")
 	return split[len(split)-1]
 }
 
-func resourceSettingsParentKey(parentType string) string {
+func resourceSettingParentKey(parentType string) string {
 	return parentType + "_id"
 }
 
-func resourceGoogleResourceSettingsCreate(parentType string) func(d *schema.ResourceData, meta interface{}) error {
+func resourceGoogleResourceSettingCreate(parentType string) func(d *schema.ResourceData, meta interface{}) error {
 	return func(d *schema.ResourceData, meta interface{}) error {
 		settingName := d.Get("setting_name").(string)
-		parentIdentifier := d.Get(resourceSettingsParentKey(parentType)).(string)
-		id := resourceSettingsFullName(parentType, parentIdentifier, settingName)
+		parentIdentifier := d.Get(resourceSettingParentKey(parentType)).(string)
+		id := resourceSettingFullName(parentType, parentIdentifier, settingName)
 
 		if err := patchResourceSetting(d, meta, false, id); err != nil {
 			return fmt.Errorf("Error creating: %s", err)
@@ -112,11 +127,11 @@ func resourceGoogleResourceSettingsCreate(parentType string) func(d *schema.Reso
 
 		d.SetId(id)
 
-		return resourceGoogleResourceSettingsRead(parentType)(d, meta)
+		return resourceGoogleResourceSettingRead(parentType)(d, meta)
 	}
 }
 
-func resourceGoogleResourceSettingsRead(parentType string) func(d *schema.ResourceData, meta interface{}) error {
+func resourceGoogleResourceSettingRead(parentType string) func(d *schema.ResourceData, meta interface{}) error {
 	return func(d *schema.ResourceData, meta interface{}) error {
 		config := meta.(*Config)
 		userAgent, err := generateUserAgentString(d, config.userAgent)
@@ -130,7 +145,7 @@ func resourceGoogleResourceSettingsRead(parentType string) func(d *schema.Resour
 			View("SETTING_VIEW_BASIC").
 			Do()
 		if err != nil {
-			return handleNotFoundError(err, d, fmt.Sprintf("ResourceSettings Not Found : %s", d.Id()))
+			return handleNotFoundError(err, d, fmt.Sprintf("ResourceSetting Not Found : %s", d.Id()))
 		}
 
 		// Fetch the localValue field.
@@ -139,10 +154,10 @@ func resourceGoogleResourceSettingsRead(parentType string) func(d *schema.Resour
 			View("SETTING_VIEW_LOCAL_VALUE").
 			Do()
 		if err != nil {
-			return handleNotFoundError(err, d, fmt.Sprintf("ResourceSettings Not Found : %s", d.Id()))
+			return handleNotFoundError(err, d, fmt.Sprintf("ResourceSetting Not Found : %s", d.Id()))
 		}
 
-		if err := d.Set("setting_name", resourceSettingsShortName(settingLocal.Name)); err != nil {
+		if err := d.Set("setting_name", resourceSettingShortName(settingLocal.Name)); err != nil {
 			return fmt.Errorf("Error setting setting_name: %s", err)
 		}
 
@@ -151,16 +166,19 @@ func resourceGoogleResourceSettingsRead(parentType string) func(d *schema.Resour
 		}
 		if lv := settingLocal.LocalValue; lv != nil {
 			switch settingBasic.Metadata.DataType {
+			// Basic types //
 			case "BOOLEAN":
 				localValue[0]["boolean_value"] = settingLocal.LocalValue.BooleanValue
 			case "STRING":
 				localValue[0]["string_value"] = settingLocal.LocalValue.StringValue
-			case "STRING_SET":
-				// TODO
 			case "ENUM_VALUE":
 				localValue[0]["enum_value"] = settingLocal.LocalValue.EnumValue.Value
 			case "DURATION_VALUE":
 				localValue[0]["duration_value"] = settingLocal.LocalValue.DurationValue
+
+			// Complex types //
+			case "STRING_SET":
+				// TODO
 			case "STRING_MAP":
 				// TODO
 			}
@@ -174,7 +192,7 @@ func resourceGoogleResourceSettingsRead(parentType string) func(d *schema.Resour
 	}
 }
 
-func resourceGoogleResourceSettingsUpdate(parentType string) func(d *schema.ResourceData, meta interface{}) error {
+func resourceGoogleResourceSettingUpdate(parentType string) func(d *schema.ResourceData, meta interface{}) error {
 	return func(d *schema.ResourceData, meta interface{}) error {
 		if err := patchResourceSetting(d, meta, false, d.Id()); err != nil {
 			return fmt.Errorf("Error updating: %s", err)
@@ -184,7 +202,7 @@ func resourceGoogleResourceSettingsUpdate(parentType string) func(d *schema.Reso
 	}
 }
 
-func resourceGoogleResourceSettingsDelete(parentType string) func(d *schema.ResourceData, meta interface{}) error {
+func resourceGoogleResourceSettingDelete(parentType string) func(d *schema.ResourceData, meta interface{}) error {
 	return func(d *schema.ResourceData, meta interface{}) error {
 		if err := patchResourceSetting(d, meta, true, d.Id()); err != nil {
 			return fmt.Errorf("Error deleting: %s", err)
@@ -192,19 +210,6 @@ func resourceGoogleResourceSettingsDelete(parentType string) func(d *schema.Reso
 
 		return nil
 	}
-}
-
-func resourceGoogleResourceSettingsImportState(d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	// TODO
-	//id := d.Id()
-
-	//if !strings.HasPrefix(d.Id(), "folders/") {
-	//	id = fmt.Sprintf("folders/%s", id)
-	//}
-
-	//d.SetId(id)
-
-	return []*schema.ResourceData{d}, nil
 }
 
 // patchResourceSetting is used by Create/Update/Delete.
@@ -219,13 +224,13 @@ func patchResourceSetting(d *schema.ResourceData, meta interface{}, unset bool, 
 	var localValue *resourceSettingsV1.GoogleCloudResourcesettingsV1Value
 	if !unset {
 		localValue = &resourceSettingsV1.GoogleCloudResourcesettingsV1Value{}
-		if val, ok := d.GetOk("local_value.0.boolean_value"); ok {
+		if val, ok := d.GetOk(resourceSettingKeyBooleanValue); ok {
 			localValue.BooleanValue = val.(bool)
-		} else if val, ok := d.GetOk("local_value.0.string_value"); ok {
+		} else if val, ok := d.GetOk(resourceSettingKeyStringValue); ok {
 			localValue.StringValue = val.(string)
-		} else if val, ok := d.GetOk("local_value.0.enum_value"); ok {
+		} else if val, ok := d.GetOk(resourceSettingKeyEnumValue); ok {
 			localValue.EnumValue = &resourceSettingsV1.GoogleCloudResourcesettingsV1ValueEnumValue{Value: val.(string)}
-		} else if val, ok := d.GetOk("local_value.0.duration_value"); ok {
+		} else if val, ok := d.GetOk(resourceSettingKeyDurationValue); ok {
 			localValue.DurationValue = val.(string)
 		}
 	}
